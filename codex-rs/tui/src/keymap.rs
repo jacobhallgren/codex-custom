@@ -1458,13 +1458,23 @@ impl RuntimeKeymap {
                 history_search_next: default_bindings![ctrl(KeyCode::Char('s'))],
             },
             editor: Arc::new(EditorKeymap {
-                insert_newline: default_bindings![
-                    ctrl(KeyCode::Char('j')),
-                    ctrl(KeyCode::Char('m')),
-                    plain(KeyCode::Enter),
-                    shift(KeyCode::Enter),
-                    alt(KeyCode::Enter)
-                ],
+                insert_newline: {
+                    let mut bindings = default_bindings![
+                        ctrl(KeyCode::Char('j')),
+                        ctrl(KeyCode::Char('m')),
+                        plain(KeyCode::Enter),
+                        shift(KeyCode::Enter),
+                        alt(KeyCode::Enter),
+                    ];
+                    // Windows Terminal collapses Shift+Enter and Ctrl+Enter into the
+                    // same `Enter + CONTROL` event, so binding the latter form keeps
+                    // newline insertion working there. Scoped to `cfg(windows)` so
+                    // non-Windows users remain free to bind `ctrl-enter` to other
+                    // actions (e.g. `composer.submit`, see #5716).
+                    #[cfg(windows)]
+                    bindings.push(key_hint::ctrl(KeyCode::Enter));
+                    bindings
+                },
                 move_left: default_bindings![plain(KeyCode::Left), ctrl(KeyCode::Char('b'))],
                 move_right: default_bindings![plain(KeyCode::Right), ctrl(KeyCode::Char('f'))],
                 move_up: default_bindings![plain(KeyCode::Up), ctrl(KeyCode::Char('p'))],
@@ -1975,11 +1985,36 @@ impl RuntimeKeymap {
                 ("editor.kill_line_end", self.editor.kill_line_end.as_slice()),
                 ("editor.yank", self.editor.yank.as_slice()),
             ],
-            [(
-                "composer.submit",
-                "editor.insert_newline",
-                key_hint::plain(KeyCode::Enter),
-            )],
+            {
+                // Plain `Enter` is shared between `composer.submit` (the default)
+                // and `editor.insert_newline` (used by the textarea when the composer
+                // declines to submit). On Windows, `Ctrl+Enter` is similarly shared:
+                // the default `editor.insert_newline` includes it because Windows
+                // Terminal collapses `Shift+Enter` and `Ctrl+Enter` into the same
+                // `Enter+CONTROL` event. Allowing the overlap lets a user opt into
+                // `composer.submit = ctrl-enter` (per #5716) without dropping the
+                // `editor.insert_newline` default.
+                #[cfg(windows)]
+                let overlaps = [
+                    (
+                        "composer.submit",
+                        "editor.insert_newline",
+                        key_hint::plain(KeyCode::Enter),
+                    ),
+                    (
+                        "composer.submit",
+                        "editor.insert_newline",
+                        key_hint::ctrl(KeyCode::Enter),
+                    ),
+                ];
+                #[cfg(not(windows))]
+                let overlaps = [(
+                    "composer.submit",
+                    "editor.insert_newline",
+                    key_hint::plain(KeyCode::Enter),
+                )];
+                overlaps
+            },
         )?;
 
         let context_bindings = |context| {
@@ -3599,16 +3634,18 @@ mod tests {
     #[test]
     fn default_editor_insert_newline_includes_current_aliases() {
         let runtime = RuntimeKeymap::defaults();
-        assert_eq!(
-            runtime.editor.insert_newline,
-            vec![
-                key_hint::ctrl(KeyCode::Char('j')),
-                key_hint::ctrl(KeyCode::Char('m')),
-                key_hint::plain(KeyCode::Enter),
-                key_hint::shift(KeyCode::Enter),
-                key_hint::alt(KeyCode::Enter),
-            ]
-        );
+        let mut expected = vec![
+            key_hint::ctrl(KeyCode::Char('j')),
+            key_hint::ctrl(KeyCode::Char('m')),
+            key_hint::plain(KeyCode::Enter),
+            key_hint::shift(KeyCode::Enter),
+            key_hint::alt(KeyCode::Enter),
+        ];
+        // Windows-only addition: see `RuntimeKeymap::built_in_defaults` for the
+        // rationale behind binding `Ctrl+Enter` to `insert_newline` on Windows.
+        #[cfg(windows)]
+        expected.push(key_hint::ctrl(KeyCode::Enter));
+        assert_eq!(runtime.editor.insert_newline, expected);
     }
 
     #[test]
