@@ -1,3 +1,19 @@
+# Codex Custom for Windows
+
+This is an independently maintained custom build of [OpenAI Codex](https://github.com/openai/codex), currently based on **0.153.4**. It is not an official OpenAI distribution. Upstream source history and license notices are retained.
+
+The custom Rust change is in `codex-rs/tui/src/keymap.rs`: a Windows-only Ctrl+Enter newline binding preserves Shift+Enter behavior in console environments that report it as Enter+CONTROL. Other platforms retain their upstream bindings.
+
+For a working Windows installation:
+
+- Build the main CLI from the custom branch with `cargo build --release --bin codex` in `codex-rs`.
+- Install the matching **0.153.4** `codex-code-mode-host.exe` beside `codex.exe`. Building only the main CLI does not produce this helper. The [official release](https://github.com/openai/codex/releases/tag/rust-v0.153.4) provides it separately; the x86_64 Windows `.exe` has SHA-256 `deaebc21f354f151fcebeac46e12c6e8c4ef75ee448e25e3577502074e04b8d9`.
+- When sharing existing state databases with official Windows builds, preserve matching migration line endings. This custom build normalizes SQL files in every `codex-rs/state/*migrations/` directory to CRLF before compiling.
+
+Personal credentials, MCP configuration, conversations, and machine-specific installation scripts are not part of this repository. The upstream installation commands below install official Codex rather than this custom build.
+
+## Upstream README
+
 <p align="center"><strong>Codex CLI</strong> is a coding agent from OpenAI that runs locally on your computer.
 <p align="center">
   <img src="https://github.com/openai/codex/blob/main/.github/codex-cli-splash.png" alt="Codex CLI splash" width="80%" />
